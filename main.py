@@ -6,20 +6,23 @@ import itertools
 
 from scipy.stats import binom
 
-def sensitivity(s, k, nb):
+base2 = True # set true to represent delta in base 2, otherwise in base 10.
+hockeyStickDivergence = False # set true to use HSD instead of CDF tail bound.
+
+def Sensitivity(s, k, nb):
     # return the probability of sensitivity s, with k iteration and size of honest party's input set being nb.
     return binom.pmf(s, k, 1.0 / (nb + 1))
 
-def sensitivity_list(k, nb, lam):
+def SensitivityList(k, nb, lam):
     # return a list of tuples of (sensitivity and probability), only keep those with greater than 2^-lam probability
     res = []
     for s in range(0, k + 1):
-        res.append((s, sensitivity(s, k, nb)))
+        res.append((s, Sensitivity(s, k, nb)))
         if binom.cdf(s, k, 1.0 / (nb + 1)) > 1 - 2 ** (-lam):
             break
     return res
 
-def chernoff_bound(k,n,p):
+def BinomChernoffBound(k,n,p):
     # if k > n*p:
     #     return -1
     assert k <= n * p
@@ -33,7 +36,7 @@ def chernoff_bound(k,n,p):
 #     # hashed to a greater value than minimum across intersected item.
 #     return (1-min_value) ** num_of_trials
 
-def num_good_hashes(na, nb, ni, k,lam):
+def NumGoodHashes(na, nb, ni, k,lam):
     # this return the number of good hashes given a list of theta:
     # (1) it hashed intersected input to minimum.
     # (2) it hashes to within range of [1/2-theta, 1/2+theta].
@@ -57,7 +60,7 @@ def num_good_hashes(na, nb, ni, k,lam):
                 continue
 
             # print(theta,k_good,k,p)
-            # tail = chernoff_bound(k_good,k,p)
+            # tail = BinomChernoffBound(k_good,k,p)
             tail = binom.cdf(k_good, k, p)
 
             if tail <= 2**(-lam):
@@ -70,7 +73,7 @@ def num_good_hashes(na, nb, ni, k,lam):
 
     return res
 
-def num_good_hashes_graph(na, nb, ni, k, theta_list):
+def NumGoodHashesGraph(na, nb, ni, k, theta_list):
     # this return the number of good hashes given a list of theta:
     # (1) it hashed intersected input to minimum.
     # (2) it hashes to within range of [1/2-theta, 1/2+theta].
@@ -95,7 +98,7 @@ def num_good_hashes_graph(na, nb, ni, k, theta_list):
                 continue
 
             # print(theta,k_good,k,p)
-            tail = chernoff_bound(k_good,k,p)
+            tail = BinomChernoffBound(k_good,k,p)
 
             if tail <= 2**(-40):
                 break
@@ -115,18 +118,48 @@ def num_good_hashes_graph(na, nb, ni, k, theta_list):
 
 # Poisson binomial mechanism, return delta for given epsilon and k.
 
-
-def Binom_Mechanism(p, k ,eps,s):
+def BinomMechanism(p, k ,eps,s):
+    e_eps = math.e ** eps
     e_eps_s = math.e**(eps/s)
     q = 1-p
 
-    # left tail, use a looser bound compared to the paper, without assume p < 1/2.
-    l = math.ceil((k*p+ s*p + s*q*e_eps_s)/(e_eps_s * q + p))
-    l_delta = binom.cdf(l-1, k, p)
+    if hockeyStickDivergence:
+        # FIXME: Implement Binary search.
+        l = math.ceil((k * p + s * p + s * q * e_eps_s) / (e_eps_s * q + p))
+        l_delta = binom.cdf(l - 1, k, p)
 
-    # right tail
-    r = math.floor((k*p*e_eps_s)/(q + e_eps_s* p))
-    r_delta = 1-binom.cdf(r,k,p)
+        # right tail
+        r = math.floor((k * p * e_eps_s) / (q + e_eps_s * p))
+        r_delta = 1 - binom.cdf(r, k, p)
+        # binoma
+        # left = s
+        # right = math.floor(p*k)-1
+        # assert left<right
+        # l = -1
+        #
+        # while left <= right:
+        #     mid = (left + right) // 2
+        #
+        #     if binom.pdf(mid,k,p)/binom.pdf(mid-s,k,p) > e_eps:
+        #         left = mid + 1
+        #     else:
+        #         l = mid
+        #         right = mid - 1
+        #
+        #
+        # l_delta = binom.cdf(l - 1, k, p) - e_eps_s *
+
+
+
+
+    else:
+    # left tail, use a looser bound compared to the paper, without assume p < 1/2.
+        l = math.ceil((k*p+ s*p + s*q*e_eps_s)/(e_eps_s * q + p))
+        l_delta = binom.cdf(l-1, k, p)
+
+        # right tail
+        r = math.floor((k*p*e_eps_s)/(q + e_eps_s* p))
+        r_delta = 1-binom.cdf(r,k,p)
 
     # print(l,l_delta,r,r_delta)
     #
@@ -137,30 +170,30 @@ def Binom_Mechanism(p, k ,eps,s):
     return max(l_delta,r_delta)
 
 
-def PBinom_Mechansim(na,nb,ni, k, eps,s, lam, mode):
+def PBinomMechansim(na,nb,ni, k, eps,s, lam, mode):
     # mode = 0: throw away half; mode = 1: brute force; mode = 2: ratio between upper and lower bound.
-    theta_k_list = num_good_hashes(na, nb, ni, k, lam)
+    theta_k_list = NumGoodHashes(na, nb, ni, k, lam)
     min_delta = 1
     for theta, k_good in theta_k_list:
         k_good_half = math.floor(k_good/2)
         p = 0.5 - theta
-        delta = Binom_Mechanism(p, k_good_half,eps,s)
+        delta = BinomMechanism(p, k_good_half,eps,s)
         min_delta = min(min_delta, delta)
 
     return min_delta
 
 # This compute the "real delta", i.e., the weighted sum of delta for different sensitivity, as well as a failure rate.
-def minhash_PM(na, nb, ni, k, eps,lam, mode):
+def MinhashPM(na, nb, ni, k, eps,lam, mode):
     # calculate sensitivity
 
     delta = 0
 
     total_w = 0
 
-    s_list = sensitivity_list(k, nb, lam)
+    s_list = SensitivityList(k, nb, lam)
     #
     # for s,w in s_list:
-    #     delta += w * (PBinom_Mechansim(na,nb,ni, k, eps,s, lam, mode) + 1/(2**lam))
+    #     delta += w * (PBinomMechansim(na,nb,ni, k, eps,s, lam, mode) + 1/(2**lam))
 
     # optimize the failure probability to claim good hashes, no need to make this extremely small, when delta term is large
     for s,w in s_list:
@@ -172,7 +205,7 @@ def minhash_PM(na, nb, ni, k, eps,lam, mode):
         best_delta = 1
 
         for l in range(20, lam+2):
-            best_delta = min(best_delta,PBinom_Mechansim(na,nb,ni, k-s, eps,s, l, mode)+ 1/(2**l) )
+            best_delta = min(best_delta,PBinomMechansim(na,nb,ni, k-s, eps,s, l, mode)+ 1/(2**l) )
         delta += w * best_delta
 
     delta += (1-total_w)
@@ -184,7 +217,7 @@ def MinhashGraphPBinom(na, nb, ni_list, k_list, eps_list,lam):
     for ni,k in itertools.product(ni_list,k_list):
         row = []
         for eps in eps_list:
-            row.append(minhash_PM(na,nb,ni,k,eps,lam, 0))
+            row.append(MinhashPM(na,nb,ni,k,eps,lam, 0))
         plt.plot(eps_list, row, label = "$n_I$ = {}, k = {}".format(ni, k))
 
         print('n_I = {}, k = {} completed'.format(ni, k))
@@ -195,16 +228,82 @@ def MinhashGraphPBinom(na, nb, ni_list, k_list, eps_list,lam):
     plt.yticks(fontsize=14)
     plt.xlabel(r'$\epsilon$', fontsize=18)
     plt.ylabel(r'$\delta$',rotation=0, fontsize=18)
-    plt.yscale('log')
-    plt.yticks(np.array([10**(-1 * i) for i in range(4,13)]))
+    if base2:
+        plt.yscale('log', base=2)
+        plt.yticks(np.array([2 ** (-1 * i) for i in range(20, 45,4)]))
+    else:
+        plt.yscale('log')
+        plt.yticks(np.array([10**(-1 * i) for i in range(6,13)]))
     # plt.suptitle('n_A = {}, n_B = {}, n_I = {}'.format(na, nb, ni), fontsize=14)
     plt.legend()
     plt.show()
 
+def MinhashPMK(na, nb, J, eps,delta, lam, mode):
+    # Given the jaccard index, compute the number of hashes needed to achieve set eps delta.
+
+    # find the smallest K that satisfies eps, delta.
+    ni = math.floor((na+nb)*J/(1+J))
+
+    precision = 100
+
+    low = max(int(100/ precision),1)
+    high = int(5000/ precision)
+
+    print("Testing K = {}".format(high * precision))
+    if MinhashPM(na, nb, ni, high* precision, eps, lam, mode) > delta:
+        return np.nan
+    # The binary search make contains small errors, as we may not be dealing with strictly decreasing function.
+    # But it should be fine.
+    while low < high:
+        mid = (low + high) //2
+        print("Testing K = {}".format(mid * precision))
+        if MinhashPM(na, nb, ni, mid * precision, eps, lam, mode) < delta:
+            high = mid
+        else:
+            low = mid + 1
+
+    assert low == high
+    return high* precision
+def MinhashGraphPBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
+
+    # J_list = [0.05 * i for i in range(1,20)]
+    # J_list = [0.25 * i for i in range(1, 4)]
+    J_list = [0.1 * i for i in range(1, 10)]
+    res = []
+
+    for eps, delta in itertools.product(eps_list,delta_list):
+        print("Computing for eps = {} and delta = {}".format(eps,delta))
+        row = []
+        for J in J_list:
+            row.append(MinhashPMK(na,nb,J,eps,delta,lam, 0))
+            print("J = {} completed.".format(J))
+        plt.plot(J_list, row, label = "$\epsilon$ = {}, $\delta$ = {}".format(eps, delta))
+        res.append(row)
+        print('eps = {}, delta = {} completed'.format(eps, delta))
+
+    # Since it is time-consuming, therefore print the output.
+    print(res)
+
+    plt.xticks(np.arange(0.05, 0.95, 0.05))
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xlabel(r'Jaccard Index', fontsize=18)
+    plt.ylabel(r'Number of Iterations', rotation=0, fontsize=18)
+
+    # plt.suptitle('n_A = {}, n_B = {}, n_I = {}'.format(na, nb, ni), fontsize=14)
+    plt.legend()
+    plt.show()
+
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
-    MinhashGraphPBinom(1000000, 1000000, [250000,500000,750000], [1000,2000],[0.5+i*0.25 for i in range(0,11)],40)
+    # MinhashGraphPBinom(1000000, 1000000, [250000,500000,750000], [1000,2000],[0.75+i*0.25 for i in range(0,10)],40)
     # MinhashGraphPBinom(1000000, 1000000, [250000, 500000], [1000, 2000], [0.5 + i * 1 for i in range(0, 3)], 40)
     # MinhashGraphPBinom(1000000, 1000000, [500000], [500], [0.5 + i * 0.25 for i in range(0, 1)], 40)
 
+    # MinhashGraphPBinom(1000000, 1000000, [20000], [1000], [3,4], 40)
+
+    # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2,3], [2**(-20),2**(-30),2**(-40)], 40)
+    MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)

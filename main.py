@@ -212,6 +212,41 @@ def MinhashPM(na, nb, ni, k, eps,lam, mode):
 
     return delta
 
+# Compute dealta for Binomial Mechanism.
+# This compute the "real delta", i.e., the weighted sum of delta for different sensitivity, as well as a failure rate.
+def MinhashBM(na, nb, ni, k, eps,lam, mode):
+    # Jaccard Similarity
+
+    J = ni/ (na + nb - ni)
+
+    # calculate sensitivity
+
+    delta = 0
+
+    total_w = 0
+
+    s_list = SensitivityList(k, nb, lam)
+    #
+    # for s,w in s_list:
+    #     delta += w * (PBinomMechansim(na,nb,ni, k, eps,s, lam, mode) + 1/(2**lam))
+
+    # optimize the failure probability to claim good hashes, no need to make this extremely small, when delta term is large
+    for s,w in s_list:
+        total_w += w
+
+        if s == 0:
+            continue
+
+        # best_delta = 1
+        #
+        # for l in range(20, lam+2):
+        #     best_delta = min(best_delta,PBinomMechansim(na,nb,ni, k-s, eps,s, l, mode)+ 1/(2**l) )
+        # delta += w * best_delta
+
+        delta += w * BinomMechanism(J,k,eps,s)
+    delta += (1-total_w)
+    return delta
+
 def MinhashGraphPBinom(na, nb, ni_list, k_list, eps_list,lam):
 
     for ni,k in itertools.product(ni_list,k_list):

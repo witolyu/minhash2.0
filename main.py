@@ -247,6 +247,32 @@ def MinhashBM(na, nb, ni, k, eps,lam, mode):
     delta += (1-total_w)
     return delta
 
+def MinhashGraphBinom(na, nb, ni_list, k_list, eps_list,lam):
+
+    for ni,k in itertools.product(ni_list,k_list):
+        row = []
+        for eps in eps_list:
+            row.append(MinhashBM(na,nb,ni,k,eps,lam, 0))
+        plt.plot(eps_list, row, label = "$n_I$ = {}, k = {}".format(ni, k))
+
+        print('n_I = {}, k = {} completed'.format(ni, k))
+
+    # plt.axis([0, max(eps_list)+1,])
+    plt.xticks(np.arange(min(eps_list), max(eps_list) + 0.25, 0.25))
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xlabel(r'$\epsilon$', fontsize=18)
+    plt.ylabel(r'$\delta$',rotation=0, fontsize=18)
+    if base2:
+        plt.yscale('log', base=2)
+        plt.yticks(np.array([2 ** (-1 * i) for i in range(20, 45,4)]))
+    else:
+        plt.yscale('log')
+        plt.yticks(np.array([10**(-1 * i) for i in range(6,13)]))
+    # plt.suptitle('n_A = {}, n_B = {}, n_I = {}'.format(na, nb, ni), fontsize=14)
+    plt.legend()
+    plt.show()
+
 def MinhashGraphPBinom(na, nb, ni_list, k_list, eps_list,lam):
 
     for ni,k in itertools.product(ni_list,k_list):
@@ -341,4 +367,6 @@ if __name__ == '__main__':
     # MinhashGraphPBinom(1000000, 1000000, [20000], [1000], [3,4], 40)
 
     # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2,3], [2**(-20),2**(-30),2**(-40)], 40)
-    MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)
+    # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)
+
+    MinhashGraphBinom(1000000, 1000000,[250000,500000,750000], [200,300,400],[0.75+i*0.25 for i in range(0,10)],40)

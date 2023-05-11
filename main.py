@@ -356,6 +356,64 @@ def MinhashGraphPBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
     plt.show()
 
 
+def MinhashBMK(na, nb, J, eps,delta, lam, mode):
+    # Given the jaccard index, compute the number of hashes needed to achieve set eps delta.
+
+    # find the smallest K that satisfies eps, delta.
+    ni = math.floor((na+nb)*J/(1+J))
+
+    precision = 10
+
+    low = max(int(10/ precision),1)
+    high = int(500/ precision)
+
+    print("Testing K = {}".format(high * precision))
+    if MinhashBM(na, nb, ni, high* precision, eps, lam, mode) > delta:
+        return np.nan
+    # The binary search make contains small errors, as we may not be dealing with strictly decreasing function.
+    # But it should be fine.
+    while low < high:
+        mid = (low + high) //2
+        print("Testing K = {}".format(mid * precision))
+        if MinhashBM(na, nb, ni, mid * precision, eps, lam, mode) < delta:
+            high = mid
+        else:
+            low = mid + 1
+
+    assert low == high
+    return high* precision
+
+def MinhashGraphBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
+
+    # J_list = [0.05 * i for i in range(1,20)]
+    # J_list = [0.25 * i for i in range(1, 4)]
+    J_list = [0.1 * i for i in range(1, 10)]
+    res = []
+
+    for eps, delta in itertools.product(eps_list,delta_list):
+        print("Computing for eps = {} and delta = {}".format(eps,delta))
+        row = []
+        for J in J_list:
+            row.append(MinhashBMK(na,nb,J,eps,delta,lam, 0))
+            print("J = {} completed.".format(J))
+        plt.plot(J_list, row, label = "$\epsilon$ = {}, $\delta$ = {}".format(eps, delta))
+        res.append(row)
+        print('eps = {}, delta = {} completed'.format(eps, delta))
+
+    # Since it is time-consuming, therefore print the output.
+    print(res)
+
+    plt.xticks(np.arange(0.05, 0.95, 0.05))
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xlabel(r'Jaccard Index', fontsize=18)
+    plt.ylabel(r'Number of Iterations', rotation=0, fontsize=18)
+
+    # plt.suptitle('n_A = {}, n_B = {}, n_I = {}'.format(na, nb, ni), fontsize=14)
+    plt.legend()
+    plt.show()
+
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -369,4 +427,5 @@ if __name__ == '__main__':
     # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2,3], [2**(-20),2**(-30),2**(-40)], 40)
     # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)
 
-    MinhashGraphBinom(1000000, 1000000,[250000,500000,750000], [200,300,400],[0.75+i*0.25 for i in range(0,10)],40)
+    # MinhashGraphBinom(1000000, 1000000,[250000,500000,750000], [200,300,400],[0.75+i*0.25 for i in range(0,10)],40)
+    MinhashGraphBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)

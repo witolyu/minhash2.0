@@ -8,6 +8,7 @@ from scipy.stats import binom
 
 base2 = True # set true to represent delta in base 2, otherwise in base 10.
 hockeyStickDivergence = False # set true to use HSD instead of CDF tail bound.
+lite = False
 
 def Sensitivity(s, k, nb):
     # return the probability of sensitivity s, with k iteration and size of honest party's input set being nb.
@@ -18,7 +19,7 @@ def SensitivityList(k, nb, lam):
     res = []
     for s in range(0, k + 1):
         res.append((s, Sensitivity(s, k, nb)))
-        if binom.cdf(s, k, 1.0 / (nb + 1)) > 1 - 2 ** (-lam):
+        if 1 - binom.cdf(s, k, 1.0 / (nb + 1)) <2 ** (-(lam+1)):
             break
     return res
 
@@ -124,7 +125,7 @@ def BinomMechanism(p, k ,eps,s):
     q = 1-p
 
     if hockeyStickDivergence:
-        # FIXME: Implement Binary search.
+        # FIXME: Implement Binary search and Hockey Stick Divergence
         l = math.ceil((k * p + s * p + s * q * e_eps_s) / (e_eps_s * q + p))
         l_delta = binom.cdf(l - 1, k, p)
 
@@ -203,9 +204,11 @@ def MinhashPM(na, nb, ni, k, eps,lam, mode):
             continue
 
         best_delta = 1
-
-        for l in range(20, lam+2):
-            best_delta = min(best_delta,PBinomMechansim(na,nb,ni, k-s, eps,s, l, mode)+ 1/(2**l) )
+        if lite:
+            best_delta = min(best_delta, PBinomMechansim(na, nb, ni, k - s, eps, s, lam, mode) + 1 / (2 ** lam))
+        else:
+            for l in range(20, lam+1,2):
+                best_delta = min(best_delta,PBinomMechansim(na,nb,ni, k-s, eps,s, l, mode)+ 1/(2**l) )
         delta += w * best_delta
 
     delta += (1-total_w)
@@ -226,6 +229,7 @@ def MinhashBM(na, nb, ni, k, eps,lam, mode):
     total_w = 0
 
     s_list = SensitivityList(k, nb, lam)
+    print(s_list)
     #
     # for s,w in s_list:
     #     delta += w * (PBinomMechansim(na,nb,ni, k, eps,s, lam, mode) + 1/(2**lam))
@@ -244,7 +248,8 @@ def MinhashBM(na, nb, ni, k, eps,lam, mode):
         # delta += w * best_delta
 
         delta += w * BinomMechanism(J,k,eps,s)
-    delta += (1-total_w)
+        print(delta)
+    delta += 2 ** (-(lam+1))
     return delta
 
 def MinhashGraphBinom(na, nb, ni_list, k_list, eps_list,lam):
@@ -265,7 +270,7 @@ def MinhashGraphBinom(na, nb, ni_list, k_list, eps_list,lam):
     plt.ylabel(r'$\delta$',rotation=0, fontsize=18)
     if base2:
         plt.yscale('log', base=2)
-        plt.yticks(np.array([2 ** (-1 * i) for i in range(20, 45,4)]))
+        plt.yticks(np.array([2 ** (-1 * i) for i in range(16, 64,8)]))
     else:
         plt.yscale('log')
         plt.yticks(np.array([10**(-1 * i) for i in range(6,13)]))
@@ -291,7 +296,7 @@ def MinhashGraphPBinom(na, nb, ni_list, k_list, eps_list,lam):
     plt.ylabel(r'$\delta$',rotation=0, fontsize=18)
     if base2:
         plt.yscale('log', base=2)
-        plt.yticks(np.array([2 ** (-1 * i) for i in range(20, 45,4)]))
+        plt.yticks(np.array([2 ** (-1 * i) for i in range(16, 45,4)]))
     else:
         plt.yscale('log')
         plt.yticks(np.array([10**(-1 * i) for i in range(6,13)]))
@@ -308,7 +313,7 @@ def MinhashPMK(na, nb, J, eps,delta, lam, mode):
     precision = 100
 
     low = max(int(100/ precision),1)
-    high = int(5000/ precision)
+    high = int(10000/ precision)
 
     print("Testing K = {}".format(high * precision))
     if MinhashPM(na, nb, ni, high* precision, eps, lam, mode) > delta:
@@ -327,9 +332,9 @@ def MinhashPMK(na, nb, J, eps,delta, lam, mode):
     return high* precision
 def MinhashGraphPBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
 
-    # J_list = [0.05 * i for i in range(1,20)]
+    J_list = [0.05 * i for i in range(1,20)]
     # J_list = [0.25 * i for i in range(1, 4)]
-    J_list = [0.1 * i for i in range(1, 10)]
+    # J_list = [0.1 * i for i in range(1, 10)]
     res = []
 
     for eps, delta in itertools.product(eps_list,delta_list):
@@ -338,18 +343,18 @@ def MinhashGraphPBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
         for J in J_list:
             row.append(MinhashPMK(na,nb,J,eps,delta,lam, 0))
             print("J = {} completed.".format(J))
-        plt.plot(J_list, row, label = "$\epsilon$ = {}, $\delta$ = {}".format(eps, delta))
+        plt.plot(J_list, row, 'o-', label = r"$\epsilon$ = %d $\delta$ = $2^{%d}$" % (eps, int(math.log(delta,2))))
         res.append(row)
         print('eps = {}, delta = {} completed'.format(eps, delta))
 
     # Since it is time-consuming, therefore print the output.
     print(res)
 
-    plt.xticks(np.arange(0.05, 0.95, 0.05))
+    plt.xticks(np.arange(0.05, 1, 0.05))
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.xlabel(r'Jaccard Index', fontsize=18)
-    plt.ylabel(r'Number of Iterations', rotation=0, fontsize=18)
+    plt.ylabel(r'Number of Iterations', fontsize=18)
 
     # plt.suptitle('n_A = {}, n_B = {}, n_I = {}'.format(na, nb, ni), fontsize=14)
     plt.legend()
@@ -385,9 +390,9 @@ def MinhashBMK(na, nb, J, eps,delta, lam, mode):
 
 def MinhashGraphBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
 
-    # J_list = [0.05 * i for i in range(1,20)]
+    J_list = [0.05 * i for i in range(1,20)]
     # J_list = [0.25 * i for i in range(1, 4)]
-    J_list = [0.1 * i for i in range(1, 10)]
+    # J_list = [0.1 * i for i in range(1, 10)]
     res = []
 
     for eps, delta in itertools.product(eps_list,delta_list):
@@ -396,18 +401,18 @@ def MinhashGraphBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
         for J in J_list:
             row.append(MinhashBMK(na,nb,J,eps,delta,lam, 0))
             print("J = {} completed.".format(J))
-        plt.plot(J_list, row, label = "$\epsilon$ = {}, $\delta$ = {}".format(eps, delta))
+        plt.plot(J_list, row, 'o-', label = r"$\epsilon$ = %f $\delta$ = $2^{%d}$" % (eps, int(math.log(delta,2))))
         res.append(row)
         print('eps = {}, delta = {} completed'.format(eps, delta))
 
     # Since it is time-consuming, therefore print the output.
     print(res)
 
-    plt.xticks(np.arange(0.05, 0.95, 0.05))
+    plt.xticks(np.arange(0.05, 1, 0.05))
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.xlabel(r'Jaccard Index', fontsize=18)
-    plt.ylabel(r'Number of Iterations', rotation=0, fontsize=18)
+    plt.ylabel(r'Number of Iterations', fontsize=18)
 
     # plt.suptitle('n_A = {}, n_B = {}, n_I = {}'.format(na, nb, ni), fontsize=14)
     plt.legend()
@@ -418,14 +423,31 @@ def MinhashGraphBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
-    # MinhashGraphPBinom(1000000, 1000000, [250000,500000,750000], [1000,2000],[0.75+i*0.25 for i in range(0,10)],40)
-    # MinhashGraphPBinom(1000000, 1000000, [250000, 500000], [1000, 2000], [0.5 + i * 1 for i in range(0, 3)], 40)
-    # MinhashGraphPBinom(1000000, 1000000, [500000], [500], [0.5 + i * 0.25 for i in range(0, 1)], 40)
+    # MinhashGraphPBinom(1000000, 1000000, [250000,500000,750000], [1000,2000],[1+i*0.25 for i in range(0,9)],50)
 
-    # MinhashGraphPBinom(1000000, 1000000, [20000], [1000], [3,4], 40)
 
-    # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2,3], [2**(-20),2**(-30),2**(-40)], 40)
     # MinhashGraphPBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)
 
-    # MinhashGraphBinom(1000000, 1000000,[250000,500000,750000], [200,300,400],[0.75+i*0.25 for i in range(0,10)],40)
-    MinhashGraphBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-20),2**(-30),2**(-40)], 40)
+    # lambda should be set to be smaller than the lg2 of the last of the delta list.
+    MinhashGraphPBinomJaccardVsK(100000, 100000, [1, 2], [2 ** (-20), 2 ** (-30), 2 ** (-40)], 44)
+
+    # MinhashGraphBinom(1000000, 1000000,[250000,500000,750000], [100,200],[0.5+i*0.25 for i in range(0,8)],60)
+
+    # MinhashGraphBinomJaccardVsK(1000000, 1000000,  [1,2], [2**(-30),2**(-40),2**(-50)], 60)
+
+    # MinhashGraphBinomJaccardVsK(100000, 100000,  [1,2], [2**(-30),2**(-40),2**(-50)], 60)
+
+
+
+
+   # print(BinomMechanism(0.6, 200 ,2,1),BinomMechanism(0.6, 200 ,2.5,1))
+
+    # print(MinhashPMK(100000, 100000, 0.1, 1, 2**(-20), 40, 0))
+
+
+
+    # for k in range(100,10000,200):
+    #     print(k,MinhashPM(100000, 100000,18181, k, 1, 40, 0))
+    #
+    #     na, nb, ni, k, eps, lam, mode
+

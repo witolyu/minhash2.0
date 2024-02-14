@@ -46,34 +46,51 @@ def NumGoodHashes(na, nb, ni, k, lam):
 
     theta_list = [0.02 * i for i in range(24, 0, -1)]
 
-    k_good = k
+    # k_good = k
 
     for theta in theta_list:
         # this is the success probability of the good hash event for each iteration.
         p = ((1 / 2 + theta) ** (na / (nb - ni)) - (1 / 2 - theta) ** (na / (nb - ni))) * ni / na
 
-        while True:
-            if k_good == 0:
-                break
-            if k_good >= p * k:
-                # As we want lower bound (with negligible probability), k_good should be less than expected.
-                k_good -= 1
-                continue
+        # while True:
+        #     if k_good == 0:
+        #         break
+        #     if k_good >= p * k:
+        #         # As we want lower bound (with negligible probability), k_good should be less than expected.
+        #         k_good -= 1
+        #         continue
+        #
+        #     # print(theta,k_good,k,p)
+        #     # tail = BinomChernoffBound(k_good,k,p)
+        #     tail = binom.cdf(k_good, k, p)
+        #
+        #     if tail <= 2 ** (-lam):
+        #         res.append((theta, k_good))
+        #         break
+        #     else:
+        #         k_good -= 1
 
-            # print(theta,k_good,k,p)
-            # tail = BinomChernoffBound(k_good,k,p)
-            tail = binom.cdf(k_good, k, p)
-
-            if tail <= 2 ** (-lam):
-                res.append((theta, k_good))
-                break
-            else:
-                k_good -= 1
+        k_good = binary_search_for_k_good(k,p,lam)
+        res.append((theta, k_good))
 
         # print(theta, k_good,p)
 
     return res
 
+def binary_search_for_k_good(k, p, lam):
+    left = 0
+    right = math.floor(k*p)
+    while left <= right:
+        mid = (left + right) // 2
+        tail = binom.cdf(mid, k, p)
+        if tail <= 2 ** (-lam):
+            if mid == math.floor(k*p) or binom.cdf(mid + 1, k, p) > 2 ** (-lam):
+                return mid
+            else:
+                left = mid + 1
+        else:
+            right = mid - 1
+    return 0
 
 def NumGoodHashesGraph(na, nb, ni, k, theta_list):
     # this return the number of good hashes given a list of theta:
@@ -318,19 +335,19 @@ def MinhashPMK(na, nb, J, eps, delta, lam, mode):
     # find the smallest K that satisfies eps, delta.
     ni = math.floor((na + nb) * J / (1 + J))
 
-    precision = 1000
+    precision = 100
 
-    low = max(int(64000 / precision), 1)
-    high = int(80000 / precision)
+    low = max(int(2500/ precision), 1)
+    high = int(3000/ precision)
 
-    # print("Testing K = {}".format(high * precision)) # uncomment this to show the experiment process. 
+    # print("Testing K = {}".format(high * precision)) # uncomment this to show the experiment process.
     if MinhashPM(na, nb, ni, high * precision, eps, lam, mode) > delta:
         return np.nan
     # The binary search make contains small errors, as we may not be dealing with strictly decreasing function.
     # But it should be fine.
     while low < high:
         mid = (low + high) // 2
-        # print("Testing K = {}".format(mid * precision)) # uncomment this to show the experiment process. 
+        # print("Testing K = {}".format(mid * precision)) # uncomment this to show the experiment process.
         if MinhashPM(na, nb, ni, mid * precision, eps, lam, mode) < delta:
             high = mid
         else:
@@ -437,7 +454,7 @@ def MinhashGraphBinomJaccardVsK(na, nb, eps_list, delta_list, lam):
 def MinhashPBinomJaccardVsAccuracyCompareWithSFM(n, eps_list, delta_list, lam):
     # J_list = [0.05 * i for i in range(1, 20)]
     # J_list = [0.05,0.1,0.15,0.85,0.9,0.95]
-    J_list = [0.35, 0.4, 0.6]
+    J_list = [0.7]
 
     res = []
 
@@ -531,7 +548,7 @@ def SFM_accuracy(n,JI, eps, sketchsize):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     n = 1000000
-    MinhashPBinomJaccardVsAccuracyCompareWithSFM(n, eps_list=[0.5], delta_list=[2**-40], lam=45)
+    MinhashPBinomJaccardVsAccuracyCompareWithSFM(n, eps_list=[2], delta_list=[2**-40], lam=45)
     # k=2000
     # for J in [0.1,0.3,0.5,0.7,0.9]:
     #     print("J={}".format(J))
